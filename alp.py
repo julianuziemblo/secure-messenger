@@ -106,33 +106,6 @@ class Packet:
 
 # test
 if __name__ == '__main__':
-    def serialize():
-        packet1 = Packet(
-            'User1',
-            datetime(2024, 12, 6, 13, 15, 48, 123, None),
-            bytearray([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]),
-            0x6,
-            0x4,
-            'hello!'
-        )
-        serialized = packet1.to_bytearray()
-        print(f'{serialized}')
-
-
-    def deserialize(raw_packet: bytearray):
-        packet1 = Packet.from_raw(raw_packet)
-        packet2 = Packet(
-            'User2',
-            datetime(2024, 12, 6, 13, 15, 48, 123, None),
-            bytearray([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]),
-            0x6,
-            0x4,
-            'hello!'
-        )
-        print(f'{packet1=}')
-        print(f'{packet2=}')
-
-
     def main():
         raw_packet = bytearray(
             b'User1\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' + # sender
@@ -155,9 +128,5 @@ if __name__ == '__main__':
         print(f'packet = {packet.to_bytearray()}')
 
         assert raw_packet == packet.to_bytearray()
-
-        serialize()
-        deserialize(raw_packet)
-
 
     main()
