@@ -17,20 +17,6 @@ PACKET_TYPE: dict[int, str] = {
 }
 
 
-def int_as_bytes(n: int) -> bytearray:
-    res = []
-    while n > 0:
-        res.insert(0, n & 0xff)
-        n >>= 8
-    return bytearray(res)
-
-
-def pad_with_zeros(b: bytearray, length: int) -> bytearray:
-    while len(b) < length:
-        b.insert(0, 0x0)
-    return b
-
-
 @dataclass
 class Packet:
     sender: str
@@ -42,21 +28,11 @@ class Packet:
 
     def to_bytearray(self) -> bytearray:
         sender = bytearray(b''.join([bytes(self.sender[i], encoding='ascii') if i < len(self.sender) else b'\x00' for i in range(32)]))
-        sender_time = pad_with_zeros(int_as_bytes(int(self.sender_time.timestamp())), 4)
-        dlen = pad_with_zeros(int_as_bytes(self.dlen), 8)
-        dtype = pad_with_zeros(int_as_bytes(self.dtype), 4)
+        sender_time = Packet._serialize_int(int(self.sender_time.timestamp()), 4)
+        dlen = Packet._serialize_int(self.dlen, 8)
+        dtype = Packet._serialize_int(self.dtype, 4)
         payload = self._serialize_payload()
         return sender + sender_time + self.rsvd + dlen + dtype + payload
-
-    def _serialize_payload(self) -> bytearray:
-        match self.dtype:
-            case 0x2 | 0x9 | 0xA: 
-                res = ''
-                for k, v in self.payload:
-                    res += f'{k}:{pad_with_zeros(int_as_bytes(v), 4)}'
-                return res
-            case 0x4 | 0x5 | 0x6: return bytearray(self.payload, encoding='utf-8')
-            case _: return bytearray()
 
     @classmethod
     def from_raw(cls, b: bytearray) -> Self:
@@ -68,6 +44,16 @@ class Packet:
         payload = Packet._parse_payload(dtype, b[64::])
 
         return cls(sender, sender_time, rsvd, dlen, dtype, payload)
+    
+    def _serialize_payload(self) -> bytearray:
+        match self.dtype:
+            case 0x2 | 0x9 | 0xA: 
+                res = ''
+                for k, v in self.payload:
+                    res += f'{k}:{Packet._serialize_int(v, 4)}'
+                return res
+            case 0x4 | 0x5 | 0x6: return bytearray(self.payload, encoding='utf-8')
+            case _: return bytearray()
 
     @staticmethod
     def _parse_sender(b: bytearray) -> str:
@@ -98,6 +84,24 @@ class Packet:
     @staticmethod
     def _parse_sender_time(b: bytearray) -> datetime.date:
         return datetime.fromtimestamp(Packet._parse_number(b))
+    
+    @staticmethod
+    def _serialize_int(n: int, length: int) -> bytearray:
+        return Packet._pad_with_zeros(Packet._int_as_bytes(n), length)
+    
+    @staticmethod
+    def _int_as_bytes(n: int) -> bytearray:
+        res = []
+        while n > 0:
+            res.insert(0, n & 0xff)
+            n >>= 8
+        return bytearray(res)
+
+    @staticmethod
+    def _pad_with_zeros(b: bytearray, length: int) -> bytearray:
+        while len(b) < length:
+            b.insert(0, 0x0)
+        return b
 
 
 # test
