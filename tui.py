@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, Self, Optional
+import readline
 
 
 class Tui:
@@ -20,8 +21,15 @@ class Tui:
         self.ctx = TuiContext()
         self.running = False
 
-    def run(self):
+    def run(self, logic):
+        """
+        Run the TUI.
+        logic - the App logic class # TODO !
+        """
+        readline.set_auto_history(False)
+        readline.clear_history() # TODO: Clear the history and replace it with the self.ctx.cmd_history on mode switch!
         self.running = True
+        # TODO: print WELCOME message
         while self.running:
             user_input = input(self.ctx.prompt)
             self.exec_command(user_input)
@@ -31,6 +39,9 @@ class Tui:
             return
         
         tokens = user_input.split(' ')
+
+        self.ctx.add_to_cmd_history(user_input)
+        
         if len(tokens) == 0:
             return
         if len(tokens) > 2:
@@ -54,7 +65,6 @@ class Tui:
                     return
                 
                 tui_command.execute(self.ctx, optional_arg)
-                self.ctx.cmd_history[self.ctx.mode].append(tokens)
                 return
             
         for unavail_cmd in set(TuiCommand.all_commands()).difference(TuiCommand.available_commands(self.ctx)):
@@ -77,8 +87,11 @@ class TuiContext:
         TuiMode.Idle: [],
         TuiMode.Conversation: []
     }
-
     # last_conversation: Optional[] # TODO: Optional[Conversation!]
+
+    def add_to_cmd_history(self, cmd: str):
+        self.cmd_history[self.mode].append(cmd)
+        readline.add_history(cmd)
 
 @dataclass
 class TuiCommand:
@@ -95,12 +108,12 @@ class TuiCommand:
         return hash(self.__key())
 
     @staticmethod
-    def available_commands(ctx: TuiContext) -> list[Self]:
-        return list(filter(lambda cmd: ctx.mode in cmd.modes, TuiCommand.all_commands()))
+    def available_commands(ctx: TuiContext) -> tuple[Self]:
+        return tuple(filter(lambda cmd: ctx.mode in cmd.modes, TuiCommand.all_commands()))
 
     @staticmethod
-    def all_commands() -> list[Self]:
-        return [
+    def all_commands() -> tuple[Self]:
+        return (
             TuiCommand(
                 'help', 
                 'display this `help` message', 
@@ -164,7 +177,7 @@ class TuiCommand:
                 1,
                 lambda ctx, _: print('TODO: regenerate the openssl keys!')
             )
-        ]
+        )
     
     @staticmethod
     def _command_list(ctx: TuiContext, _: str):
@@ -175,14 +188,16 @@ class TuiCommand:
     @staticmethod
     def _command_exit(ctx: TuiContext, _: str):
         match ctx.mode:
-            case TuiMode.Idle: exit(0) # TODO: (maybe) cleanup resources
+            case TuiMode.Idle: 
+                if input('Are you sure you want to exit the app? All your session data will be lost! (yes/no/<enter>) ') in {'', 'y', 'Y', 'yes', 'YES', 'Yes'}:
+                    exit(0) # TODO: (maybe) cleanup resources
             case TuiMode.Conversation: print('TODO: exit the conversation!')
 
 
 if __name__ == '__main__':
     def main():
         tui = Tui.new()
-        tui.run()
+        tui.run(logic=None)
 
     main()
 
