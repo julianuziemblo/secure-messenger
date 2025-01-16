@@ -1,31 +1,15 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable, Self, Optional
+from typing import Callable, Optional, Any
 import readline
 
 
 class Tui:
-    instance = None
-
-    @classmethod
-    def new(cls):
-        if not Tui.instance:
-            Tui.instance = cls()
-        return Tui.instance
-
-    def __init__(self):
-        """
-        WARNING: Do not use this to create the object!
-        Use the `.new()` factory method!
-        """
-        self.ctx = TuiContext()
+    def __init__(self, control: Any):
+        self.ctx = TuiContext(control)
         self.running = False
 
-    def run(self, logic):
-        """
-        Run the TUI.
-        logic - the App logic class # TODO !
-        """
+    def run(self):
         readline.set_auto_history(False)
         readline.clear_history() # TODO: Clear the history and replace it with the self.ctx.cmd_history on mode switch!
         self.running = True
@@ -33,6 +17,9 @@ class Tui:
         while self.running:
             user_input = input(self.ctx.prompt)
             self.exec_command(user_input)
+
+    def stop(self):
+        self.running = False
 
     def exec_command(self, user_input: str):
         if not user_input.startswith('/'):
@@ -89,6 +76,9 @@ class TuiContext:
     }
     # last_conversation: Optional[] # TODO: Optional[Conversation!]
 
+    def __init__(self, control: Any):
+        self.control = control
+
     def add_to_cmd_history(self, cmd: str):
         self.cmd_history[self.mode].append(cmd)
         readline.add_history(cmd)
@@ -101,18 +91,12 @@ class TuiCommand:
     n_args: int
     execute: Callable[[TuiContext, str], None]
 
-    def __key(self):
-        return (self.name, self.description)
-
-    def __hash__(self):
-        return hash(self.__key())
-
     @staticmethod
-    def available_commands(ctx: TuiContext) -> tuple[Self]:
+    def available_commands(ctx: TuiContext):
         return tuple(filter(lambda cmd: ctx.mode in cmd.modes, TuiCommand.all_commands()))
 
     @staticmethod
-    def all_commands() -> tuple[Self]:
+    def all_commands():
         return (
             TuiCommand(
                 'help', 
@@ -190,14 +174,21 @@ class TuiCommand:
         match ctx.mode:
             case TuiMode.Idle: 
                 if input('Are you sure you want to exit the app? All your session data will be lost! (yes/no/<enter>) ') in {'', 'y', 'Y', 'yes', 'YES', 'Yes'}:
+                    ctx.control.stop()
                     exit(0) # TODO: (maybe) cleanup resources
             case TuiMode.Conversation: print('TODO: exit the conversation!')
+
+    def __key(self):
+        return (self.name, self.description)
+
+    def __hash__(self):
+        return hash(self.__key())
 
 
 if __name__ == '__main__':
     def main():
-        tui = Tui.new()
-        tui.run(logic=None)
+        tui = Tui(None)
+        tui.run()
 
     main()
 
