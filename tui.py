@@ -1,17 +1,68 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable
+from typing import Callable, Self, Optional
 
 
 class Tui:
+    instance = None
+
+    @classmethod
+    def new(cls):
+        if not Tui.instance:
+            Tui.instance = cls()
+        return Tui.instance
+
     def __init__(self):
-        self.context = TuiContext()
+        """
+        WARNING: Do not use this to create the object!
+        Use the `.new()` factory method!
+        """
+        self.ctx = TuiContext()
         self.running = False
 
     def run(self):
         self.running = True
         while self.running:
-            ...
+            user_input = input(self.ctx.prompt)
+            self.exec_command(user_input)
+
+    def exec_command(self, user_input: str):
+        if not user_input.startswith('/'):
+            return
+        
+        tokens = user_input.split(' ')
+        if len(tokens) == 0:
+            return
+        if len(tokens) > 2:
+            print('Too many arguments!')
+            return
+        
+        cmd_str = tokens[0]
+
+        if len(tokens) < 2:
+            optional_arg = ''
+        else:
+            optional_arg = tokens[1]
+
+        for tui_command in TuiCommand.available_commands(self.ctx):
+            if cmd_str == '/' + tui_command.name:
+                if len(tokens) < tui_command.n_args:
+                    print(f'Too few arguments ({len(tokens)}) for `{tui_command.name}` command (needed: {tui_command.n_args})')
+                    return
+                if len(tokens) < tui_command.n_args:
+                    print(f'Too many arguments ({len(tokens)}) for `{tui_command.name}` command (needed: {tui_command.n_args})')
+                    return
+                
+                tui_command.execute(self.ctx, optional_arg)
+                self.ctx.cmd_history[self.ctx.mode].append(tokens)
+                return
+            
+        for unavail_cmd in set(TuiCommand.all_commands()).difference(TuiCommand.available_commands(self.ctx)):
+            if cmd_str == '/' + unavail_cmd.name:
+                print(f'`{unavail_cmd.name}` is not available in this mode!')
+                return
+        
+        print(f'unknown command: `{cmd_str}`')
 
 
 class TuiMode(Enum):
@@ -19,23 +70,119 @@ class TuiMode(Enum):
     Conversation = 1
 
 
+class TuiContext:
+    mode: TuiMode = TuiMode.Idle
+    prompt: str = '(secure_messenger) ' # TODO: change prompt in conversation mode
+    cmd_history: dict[TuiMode, list[str]] = {
+        TuiMode.Idle: [],
+        TuiMode.Conversation: []
+    }
+
+    # last_conversation: Optional[] # TODO: Optional[Conversation!]
+
 @dataclass
 class TuiCommand:
     name: str
-    call_name = '/' + name
+    description: str
     modes: set[TuiMode]
-    execute: Callable[[None], None]
+    n_args: int
+    execute: Callable[[TuiContext, str], None]
 
+    def __key(self):
+        return (self.name, self.description)
 
-class TuiContext:
-    def __init__(self):
-        self.state = TuiMode.idle
+    def __hash__(self):
+        return hash(self.__key())
 
     @staticmethod
-    def all_commands() -> set[TuiCommand]:
-        return {
-            TuiCommand('help', {TuiMode.Idle, TuiMode.Conversation}, lambda: print('Help used'))
-        }
+    def available_commands(ctx: TuiContext) -> list[Self]:
+        return list(filter(lambda cmd: ctx.mode in cmd.modes, TuiCommand.all_commands()))
 
-    def available_commands(self) -> set[TuiCommand]:
-        ...
+    @staticmethod
+    def all_commands() -> list[Self]:
+        return [
+            TuiCommand(
+                'help', 
+                'display this `help` message', 
+                {TuiMode.Idle, TuiMode.Conversation},
+                1,
+                lambda ctx, _: print('\n'.join([f'\t/{cmd.name} - {cmd.description}' for cmd in TuiCommand.available_commands(ctx)]))
+            ),
+            TuiCommand(
+                'join',
+                'join a conversation using a known username or IPv4 address',
+                {TuiMode.Idle},
+                2,
+                lambda ctx, user: print('TODO: join a conversation!'),
+            ),
+            TuiCommand(
+                'accept',
+                'accept an invitation from another user',
+                {TuiMode.Idle},
+                2,
+                lambda ctx, user: print('TODO: accept a conversation invite!'),
+            ),
+            TuiCommand(
+                'list',
+                'idle: display known users with theis IPs; conversation: display users in this conversation',
+                {TuiMode.Idle, TuiMode.Conversation},
+                1,
+                TuiCommand._command_list,
+            ),
+            TuiCommand(
+                'msg',
+                'send message in this conversation',
+                {TuiMode.Conversation},
+                1,
+                lambda ctx, _: print('TODO: send message in this conversation!')
+            ),
+            TuiCommand(
+                'whisper',
+                'send message directly to a user',
+                {TuiMode.Conversation},
+                2,
+                lambda ctx, user: print('TODO: send message directly to a user!')
+            ),
+            TuiCommand(
+                'exit',
+                'idle: exit the app; conversation: exit the conversation',
+                {TuiMode.Idle, TuiMode.Conversation},
+                1,
+                TuiCommand._command_exit
+            ),
+            TuiCommand(
+                'reconnect',
+                'reconnect to the last conversation you exited in this app session',
+                {TuiMode.Idle},
+                1,
+                lambda ctx, _: print('TODO: reconnect to the last conversation!')
+            ),
+            TuiCommand(
+                'regenerate-keys',
+                're-generate the openssl keys used to encrypt the conversation',
+                {TuiMode.Idle},
+                1,
+                lambda ctx, _: print('TODO: regenerate the openssl keys!')
+            )
+        ]
+    
+    @staticmethod
+    def _command_list(ctx: TuiContext, _: str):
+        match ctx.mode:
+            case TuiMode.Idle: print('TODO: display known users with theis IPs!')
+            case TuiMode.Conversation: print('TODO: display users in this conversation!')
+
+    @staticmethod
+    def _command_exit(ctx: TuiContext, _: str):
+        match ctx.mode:
+            case TuiMode.Idle: exit(0) # TODO: (maybe) cleanup resources
+            case TuiMode.Conversation: print('TODO: exit the conversation!')
+
+
+if __name__ == '__main__':
+    def main():
+        tui = Tui.new()
+        tui.run()
+
+    main()
+
