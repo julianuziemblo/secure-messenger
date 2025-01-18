@@ -2,6 +2,7 @@ from alp import Packet, PayloadType
 from datetime import datetime
 
 import socket
+import ssl
 
 packet = Packet(
     'User1',
@@ -17,11 +18,17 @@ raw_packet = packet.to_bytearray()
 HOST = "127.0.0.1"
 PORT = 2137
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-    sock.connecT((HOST, PORT))
+context = ssl._create_unverified_context(ssl.PROTOCOL_TLS_CLIENT)
+context.load_verify_locations("test.crt")
 
-    sock.sendall(raw_packet)
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
+with context.wrap_socket(s) as sock:
+    sock.connect((HOST, PORT))
+    sock.send(b"manialuka")
     data = sock.recv(1024)
+    
+    print(data.decode())
+
 
 print(f"Received {data}")

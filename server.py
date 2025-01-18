@@ -3,9 +3,7 @@ import socket
 from alp import Packet
 import select
 import queue
-import sys
-import termios
-import tty
+import ssl
 
 @dataclass
 class Server:
@@ -29,28 +27,24 @@ class Server:
 HOST = "127.0.0.1"
 PORT = 2137
 
+context = ssl._create_unverified_context(ssl.PROTOCOL_TLS_SERVER)
+context.load_cert_chain("test.crt", "test.key")
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+with context.wrap_socket(s, server_side=True) as sock:
     sock.bind((HOST, PORT))
     sock.listen()
     sock.setblocking(0)
-    # conn, addr = sock.accept()
 
-    potential_readers = [sock, sys.stdin]
+    potential_readers = [sock]
     potential_writers = []
     potential_errs = []
     message_queues = {}
-
-    old_terminal_settings = termios.tcgetattr(sys.stdin.fileno())
-    tty.setcbreak(sys.stdin.fileno())
 
     while potential_readers:
         ready_to_read, ready_to_write, in_error = select.select(
             potential_readers, potential_writers, potential_errs
         )
-        
-
-        buffer = ""
 
         for s in ready_to_read:
             if s is sock:
@@ -59,7 +53,6 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                 connection.setblocking(0)
                 potential_readers.append(connection)
                 message_queues[connection] = queue.Queue()
-            
             else:
                 data = s.recv(1024)
                 if data:
@@ -68,8 +61,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                     if s not in potential_writers:
                         potential_writers.append(s)
                 else:
+                    print(f"{s.getpeername()} disconnected")
                     if s in potential_writers:
                         potential_writers.remove(s)
+                    potential_readers.remove(s)
                     s.close()
                     del message_queues[s]
         
