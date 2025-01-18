@@ -30,7 +30,7 @@ class Packet:
         sender_time = Packet._serialize_int(int(self.sender_time.timestamp()), 4)
         dlen = Packet._serialize_int(self.dlen, 8)
         dtype = Packet._serialize_int(self.dtype.value, 4)
-        payload = self._serialize_payload()
+        payload = Packet._serialize_payload()
         return sender + sender_time + self.rsvd + dlen + dtype + payload
 
     @classmethod
@@ -50,7 +50,7 @@ class Packet:
                 res = ''
                 for k, v in self.payload:
                     res += f'{k}:{Packet._serialize_int(v, 4)}'
-                return res
+                return bytearray(res, encoding='utf-8')
             case PayloadType.MSG | PayloadType.WHISPER | PayloadType.ERROR: 
                 return bytearray(self.payload, encoding='utf-8')
             case _: return bytearray()
@@ -64,6 +64,7 @@ class Packet:
             sender += chr(byte)
         return sender
 
+    @staticmethod
     def _parse_payload(dtype: PayloadType, b: bytearray) -> Union[None, dict[str, int], str]:
         match dtype:
             case PayloadType.ACCEPT | PayloadType.NEW_USR | PayloadType.DEL_USR: 

@@ -44,11 +44,8 @@ class Tui:
 
         for tui_command in TuiCommand.available_commands(self.ctx):
             if cmd_str == '/' + tui_command.name:
-                if len(tokens) < tui_command.n_args:
-                    print(f'Too few arguments ({len(tokens)}) for `{tui_command.name}` command (needed: {tui_command.n_args})')
-                    return
-                if len(tokens) < tui_command.n_args:
-                    print(f'Too many arguments ({len(tokens)}) for `{tui_command.name}` command (needed: {tui_command.n_args})')
+                if len(tokens) != tui_command.n_args:
+                    print(f'Too {'few' if len(tokens) > tui_command.n_args else 'many'} arguments ({len(tokens)}) for `{tui_command.name}` command (needed: {tui_command.n_args})')
                     return
                 
                 tui_command.execute(self.ctx, optional_arg)
