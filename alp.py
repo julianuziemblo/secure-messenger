@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Union, Self
+from typing import Union
 from enum import Enum
 
 
@@ -34,7 +34,7 @@ class Packet:
         return sender + sender_time + self.rsvd + dlen + dtype + payload
 
     @classmethod
-    def from_raw(cls, b: bytearray) -> Self:
+    def from_raw(cls, b: bytearray):
         sender = Packet._parse_sender(b[0:32:])
         sender_time = Packet._parse_sender_time(b[32:36:])
         rsvd = b[36:52:]
