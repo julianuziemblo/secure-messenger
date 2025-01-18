@@ -30,7 +30,7 @@ class Packet:
         sender_time = Packet._serialize_int(int(self.sender_time.timestamp()), 4)
         dlen = Packet._serialize_int(self.dlen, 8)
         dtype = Packet._serialize_int(self.dtype.value, 4)
-        payload = Packet._serialize_payload()
+        payload = self._serialize_payload()
         return sender + sender_time + self.rsvd + dlen + dtype + payload
 
     @classmethod
