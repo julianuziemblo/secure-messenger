@@ -4,6 +4,7 @@ from alp import Packet
 import select
 import queue
 import ssl
+import sys
 
 @dataclass
 class Server:
@@ -31,68 +32,84 @@ context = ssl._create_unverified_context(ssl.PROTOCOL_TLS_SERVER)
 context.load_cert_chain("test.crt", "test.key")
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-with context.wrap_socket(s, server_side=True) as sock:
-    sock.bind((HOST, PORT))
-    sock.listen()
-    sock.setblocking(0)
+def run(s):
+    with context.wrap_socket(s, server_side=True) as sock:
+        sock.bind((HOST, PORT))
+        sock.listen()
+        sock.setblocking(0)
 
-    potential_readers = [sock]
-    potential_writers = []
-    potential_errs = []
-    message_queues = {}
+        
+        potential_readers = [sys.stdin, sock] # Store all sockets
+        potential_writers = []
+        potential_errs = []
+        message_queues = {}
 
-    while potential_readers:
-        ready_to_read, ready_to_write, in_error = select.select(
-            potential_readers, potential_writers, potential_errs
-        )
+        clients = {}
 
-        for s in ready_to_read:
-            if s is sock:
-                connection, client_address = s.accept()
-                print(f"Connection accepted: {client_address}")
-                connection.setblocking(0)
-                potential_readers.append(connection)
-                message_queues[connection] = queue.Queue()
-            else:
-                data = s.recv(1024)
-                if data:
-                    print(f"Message from {s.getpeername()}: {data}")
-                    message_queues[s].put(data)
-                    if s not in potential_writers:
-                        potential_writers.append(s)
+        while potential_readers:
+            ready_to_read, ready_to_write, in_error = select.select(
+                potential_readers, potential_writers, potential_errs
+            )
+
+            for s in ready_to_read:
+                if s is sock:
+                    connection, client_address = s.accept() # Accept connection
+                    print(f"Connection accepted: {client_address}")
+                    connection.setblocking(0)
+                    potential_readers.append(connection)
+                    message_queues[connection] = queue.Queue()
+
+                    clients[client_address[1]] = connection
+                elif s is sys.stdin:
+                    message = sys.stdin.readline()
+                    message = message.split()
+
+                    message_raw = (" ".join(message[2:]) + "\n").encode("utf-8") 
+
+                    target_port = int(message[1])
+                    
+                    if target_port in clients:
+                        try:
+                            clients[target_port].send(message_raw)
+                        except Exception as e:
+                            print(f"Failed to send message to {target_port}: {e}")
+                    else:
+                        print(f"No client connected on port {target_port}")
+
                 else:
-                    print(f"{s.getpeername()} disconnected")
-                    if s in potential_writers:
-                        potential_writers.remove(s)
-                    potential_readers.remove(s)
-                    s.close()
-                    del message_queues[s]
-        
-        for s in ready_to_write:
-            try:
-                next_msg = message_queues[s].get_nowait()
-            except queue.Empty:
-                potential_writers.remove(s)
-            else:
-                s.send(b"[i] Message received")
-        
-        for s in potential_errs:
-            potential_readers.remove(s)
-            if s in potential_writers:
-                potential_writers.remove(s)
-            s.close()
-            del message_queues[s]
+                    data = s.recv(1024)
+                    if data:
+                        print(f"Message from {s.getpeername()}: {data}")
+                        message_queues[s].put(data)
+                        if s not in potential_writers:
+                            potential_writers.append(s)
+                    else:
+                        print(f"{s.getpeername()} disconnected")
+                        if s in potential_writers:
+                            potential_writers.remove(s)
+                        
+                        client_port = s.getpeername()[1]
+
+                        if client_port in clients:
+                            del clients[client_port]
+
+                        potential_readers.remove(s)
+                        s.close()
+                        del message_queues[s]
+            
+            for s in ready_to_write:
+                try:
+                    next_msg = message_queues[s].get_nowait()
+                except queue.Empty:
+                    potential_writers.remove(s)
+                else:
+                    s.send(b"[i] Message received")
+            
+            for s in potential_errs:
+                potential_readers.remove(s)
+                if s in potential_writers:
+                    potential_writers.remove(s)
+                s.close()
+                del message_queues[s]
 
 
-
-
-
-    # with conn:
-    #     print(f"Connected by {addr}")
-    #     while True:
-    #         data = conn.recv(1024)
-    #         print(data)
-    #         if not data:
-    #             break
-    #         print(data)
-    #         conn.sendall(data)
