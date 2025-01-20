@@ -4,10 +4,10 @@ from server import Server, User
 
 
 class AppLogic:
-    def __init__(self, control: Any, username: str, port=2137):
+    def __init__(self, control: Any, username: str, port=2137, passwd=None, public=None, private=None, delete_keys=True):
         self.running = False
         self.control = control
-        self.server = Server(username, control, port=port)
+        self.server = Server(username, control, port=port, passwd=passwd, public=public, private=private, delete_keys=delete_keys)
 
     def run(self):
         self.running = True
@@ -21,6 +21,9 @@ class AppLogic:
 
     def join(self, ip: str, port: int):
         self.server.join((ip, port))
+
+    def exit_conversation(self):
+        self.server.exit_conversation()
 
     def find_by_username(self, username: str):
         for u in self.server.users:

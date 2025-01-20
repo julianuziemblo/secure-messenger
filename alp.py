@@ -84,7 +84,6 @@ class Packet:
         match dtype:
             case PayloadType.ACCEPT | PayloadType.NEW_USR | PayloadType.DEL_USR: 
                 res = ''
-                print(f'DEBUG: _serialize_payload: {payload=}')
                 for k, v in payload.items():
                     res += f'{k}:{v}'
                 return bytearray(res, encoding='utf-8')

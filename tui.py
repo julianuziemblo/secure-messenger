@@ -3,6 +3,8 @@ from enum import Enum
 from typing import Callable, Optional, Any
 import readline
 from alp import Packet, PayloadType
+import os
+import socket
 
 
 class Tui:
@@ -14,7 +16,11 @@ class Tui:
         readline.set_auto_history(False)
         readline.clear_history()
         self.running = True
-        print(f'Welcome!\nType /help to see available commands')
+        print(f'Welcome, {self.ctx.username}!\nType /help to see available commands')
+        print(f'Interfaces:')
+        local_hostname = socket.gethostname()
+        ip_addresses = socket.gethostbyname_ex(local_hostname)[2]
+        print(ip_addresses)
         while self.running:
             user_input = input(self.ctx.prompt)
             self.exec_command(user_input)
@@ -77,12 +83,11 @@ class TuiMode(Enum):
 
 class TuiContext:
     mode: TuiMode = TuiMode.Idle
-    prompt: str = '(secure_messenger) ' # TODO: change prompt in conversation mode
+    prompt: str = '(secure_messenger) '
     cmd_history: dict[TuiMode, list[str]] = {
         TuiMode.Idle: [],
         TuiMode.Conversation: []
     }
-    # last_conversation: Optional[] # TODO: Optional[Conversation!]
 
     def __init__(self, control: Any, username: str, port=None):
         self.control = control
@@ -100,7 +105,7 @@ class TuiContext:
         self.mode = mode
         match mode:
             case TuiMode.Idle: self.prompt = '(secure_messenger) '
-            case TuiMode.Conversation: self.prompt = '(secure_messenger) > '
+            case TuiMode.Conversation: self.prompt = '> '
     
 
 @dataclass
@@ -218,9 +223,9 @@ class TuiCommand:
     
     @staticmethod
     def _command_list(ctx: TuiContext):
-        match ctx.mode:
-            case TuiMode.Idle: print('TODO: display known users with theis IPs!')
-            case TuiMode.Conversation: print('TODO: display users in this conversation!')
+        print('Users:')
+        for u in ctx.control.users_list():
+            print(f'{u}')
 
     @staticmethod
     def _join(ctx: TuiContext, addr: str):
@@ -240,9 +245,8 @@ class TuiCommand:
                     ctx.control.stop()
                     exit(0)
             case TuiMode.Conversation: 
-                print('TODO: exit the conversation!')
                 ctx.change_mode(TuiMode.Idle)
-                # TODO: send some signal to Server that mode has changed - close all sockets etc.
+                ctx.control.exit_conversation()
 
     def __key(self):
         return (self.name, self.description)
