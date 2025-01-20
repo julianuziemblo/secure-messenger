@@ -64,10 +64,11 @@ class Tui:
                         return
                     tui_command.execute(self.ctx, tokens[1])
             case 3:
-                if len(tokens) < 3:
-                    return
-                tui_command.execute(self.ctx, tokens[1], ' '.join(tokens[2::]))
-            case _: print('Internal error: unreachable statement reached (???)')
+                try:
+                    tui_command.execute(self.ctx, tokens[1], ' '.join(tokens[2::]))
+                except Exception as e:
+                    print(f'Couldn\'t whisper to {tokens[1]}: {e}')
+            case n: print(f'Internal error: unreachable statement reached with n_args={n} (???)')
 
     def _guard(self, cmd, tokens):
         if len(tokens) != cmd.n_args:
@@ -162,7 +163,14 @@ class TuiCommand:
                 'send message directly to a user',
                 {TuiMode.Conversation},
                 3,
-                lambda ctx, user, msg: print('TODO: send message directly to a user!')
+                lambda ctx, user, msg: ctx.control.send(
+                    Packet.new(
+                        ctx.username,
+                        PayloadType.WHISPER,
+                        msg,
+                    ),
+                    ctx.control.find_by_username(user)
+                )
             ),
             'exit': TuiCommand(
                 'exit',
@@ -171,20 +179,20 @@ class TuiCommand:
                 1,
                 TuiCommand._command_exit
             ),
-            'reconnect': TuiCommand(
-                'reconnect',
-                'reconnect to the last conversation you exited in this app session',
-                {TuiMode.Idle},
-                1,
-                lambda ctx: print('TODO: reconnect to the last conversation!')
-            ),
-            'regenerate-keys': TuiCommand(
-                'regenerate-keys',
-                're-generate the openssl keys used to encrypt the conversation',
-                {TuiMode.Idle},
-                1,
-                lambda ctx: print('TODO: regenerate the openssl keys!')
-            ),
+            # 'reconnect': TuiCommand(
+            #     'reconnect',
+            #     'reconnect to the last conversation you exited in this app session',
+            #     {TuiMode.Idle},
+            #     1,
+            #     lambda ctx: print('TODO: reconnect to the last conversation!')
+            # ),
+            # 'regenerate-keys': TuiCommand(
+            #     'regenerate-keys',
+            #     're-generate the openssl keys used to encrypt the conversation',
+            #     {TuiMode.Idle},
+            #     1,
+            #     lambda ctx: print('TODO: regenerate the openssl keys!')
+            # ),
             'help': TuiCommand(
                 'help', 
                 'display this `help` message', 

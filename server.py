@@ -133,10 +133,14 @@ class Server:
             print(f'Couldn\'t connect to requested address: {e}')
 
 
-    def find_by_addr(self, addr: tuple[str, int]) -> User | None:
+    def find_by_addr(self, addr: tuple[str, int], ignore_port=False) -> User | None:
         for user in self.users:
-            if user.addr == addr:
-                return user
+            if ignore_port:
+                if user.addr[0] == addr[0]:
+                    return user
+            else:
+                if user.addr == addr:
+                    return user
         return None
     
     def find_by_recv_socket(self, recv_socket: int) -> User | None:
@@ -183,8 +187,8 @@ class Server:
                         connection.setblocking(0)
                         self.potential_readers.append(connection)
                         self.message_queues[connection] = queue.Queue()   
-
-                        if user := self.find_by_addr(client_address):
+ 
+                        if user := self.find_by_addr(client_address, ignore_port=True):
                             user.recv_socket = connection
                         else:
                             user = User('unknown', client_address, False, None, connection)
@@ -220,7 +224,6 @@ class Server:
                                         f'Unknown packet format\n{e}'
                                     ).to_bytearray()
                                 )
-                                del self.users[s]
                                 if s in self.potential_readers:
                                     self.potential_readers.remove(s)
                                 if s in self.potential_writers:
