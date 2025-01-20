@@ -234,7 +234,8 @@ class Server:
                                 continue
 
                             if packet.dtype in {PayloadType.MSG, PayloadType.WHISPER} and user.accepted:
-                                print(f"[{packet.sender_time}] {user}{' whispers' if packet.payload == PayloadType.WHISPER else ''}: {packet.payload}")
+                                print(f'')
+                                print(f"[{packet.sender_time}] {user}{' whispers' if packet.dtype == PayloadType.WHISPER else ''}: {packet.payload}")
                             elif packet.dtype == PayloadType.JOIN:
                                 # prompt user to send ACCEPT/DENY
                                 print(f'{user} wants to join the conversation')
