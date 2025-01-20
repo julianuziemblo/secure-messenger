@@ -71,7 +71,7 @@ def main():
     parser.add_argument('-u', '--username', required=True, type=str, help='Your username that will be used in communication.')
     parser.add_argument('-P', '--password', required='--keys' not in sys.argv and '-k' not in sys.argv, help='Passphrase for generating public-private key pair.')
     parser.add_argument('-p', '--port', type=int, default=2137, help='Optional TCP port for the main socket. The default is 2137.')
-    parser.add_argument('--delete-keys', type=bool, default=True, help='If the keys used for communication encryption should be deleted, True on default.')
+    parser.add_argument('--delete-keys', type=bool, default='--keys' not in sys.argv and '-k' not in sys.argv, help='If the keys used for communication encryption should be deleted, True on default.')
     args = parser.parse_args()
 
     username = args.username

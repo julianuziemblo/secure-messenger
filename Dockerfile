@@ -6,4 +6,6 @@ COPY *.py requirements.txt ./
 
 RUN pip install -r requirements.txt
 
+EXPOSE 2137:2137
+
 ENTRYPOINT [ "python", "./app.py" ] 
