@@ -21,6 +21,7 @@ class Packet:
     sender: str
     sender_time: datetime
     rsvd: bytearray
+    port: Union[int, None]
     dlen: int
     dtype: PayloadType
     payload: Union[None, dict[str, int], str]
@@ -28,31 +29,67 @@ class Packet:
     def to_bytearray(self) -> bytearray:
         sender = bytearray(b''.join([bytes(self.sender[i], encoding='ascii') if i < len(self.sender) else b'\x00' for i in range(32)]))
         sender_time = Packet._serialize_int(int(self.sender_time.timestamp()), 4)
+        if self.port:
+            port = Packet._serialize_int(self.port, 2)
+        else:
+            port = b'\x00' * 2
         dlen = Packet._serialize_int(self.dlen, 8)
         dtype = Packet._serialize_int(self.dtype.value, 4)
-        payload = self._serialize_payload()
-        return sender + sender_time + self.rsvd + dlen + dtype + payload
+        payload = Packet._serialize_payload(self.dtype, self.payload)
+        return sender + sender_time + self.rsvd + port + dlen + dtype + payload
+    
+    @classmethod
+    def new(cls, sender: str, dtype: PayloadType, payload: Union[None, dict[str, int], str], port=None):
+        """
+        ### dtype:
+
+            1. PayloadType.ACCEPT | PayloadType.NEW_USR | PayloadType.DEL_USR: payload = dict[str, int]
+
+            2. PayloadType.MSG | PayloadType.WHISPER | PayloadType.ERROR: payload = str
+
+            3. PayloadType.JOIN | PayloadType.RUA | PayloadType.IAA: payload = None
+        """
+        dlen = 0
+        match dtype:
+            case PayloadType.ACCEPT | PayloadType.NEW_USR | PayloadType.DEL_USR: 
+                dlen = len(Packet._serialize_payload(dtype, payload))
+            case PayloadType.MSG | PayloadType.WHISPER | PayloadType.ERROR: 
+                dlen = len(bytearray(payload, encoding='utf-8'))
+            case _: 
+                dlen = 0
+        return cls(
+            sender,
+            datetime.today(),
+            bytearray(b'\x00' * 14),
+            port,
+            dlen,
+            dtype,
+            payload
+        )
 
     @classmethod
     def from_raw(cls, b: bytearray):
         sender = Packet._parse_sender(b[0:32:])
         sender_time = Packet._parse_sender_time(b[32:36:])
-        rsvd = b[36:52:]
+        rsvd = b[36:50:]
+        port = Packet._parse_number(b[50:52])
         dlen = Packet._parse_number(b[52:60:])
         dtype = PayloadType(value=Packet._parse_number(b[60:64:]))
         payload = Packet._parse_payload(dtype, b[64::])
 
-        return cls(sender, sender_time, rsvd, dlen, dtype, payload)
+        return cls(sender, sender_time, rsvd, port if port != 0 else None, dlen, dtype, payload)
     
-    def _serialize_payload(self) -> bytearray:
-        match self.dtype:
+    @staticmethod
+    def _serialize_payload(dtype: PayloadType, payload: Union[None, dict[str, int], str]) -> bytearray:
+        match dtype:
             case PayloadType.ACCEPT | PayloadType.NEW_USR | PayloadType.DEL_USR: 
                 res = ''
-                for k, v in self.payload:
-                    res += f'{k}:{Packet._serialize_int(v, 4)}'
+                print(f'DEBUG: _serialize_payload: {payload=}')
+                for k, v in payload.items():
+                    res += f'{k}:{v}'
                 return bytearray(res, encoding='utf-8')
             case PayloadType.MSG | PayloadType.WHISPER | PayloadType.ERROR: 
-                return bytearray(self.payload, encoding='utf-8')
+                return bytearray(payload, encoding='utf-8')
             case _: return bytearray()
 
     @staticmethod
@@ -68,7 +105,17 @@ class Packet:
     def _parse_payload(dtype: PayloadType, b: bytearray) -> Union[None, dict[str, int], str]:
         match dtype:
             case PayloadType.ACCEPT | PayloadType.NEW_USR | PayloadType.DEL_USR: 
-                return { s.split(':')[0]: s.split(':')[1] for s in str(b).split(';') }
+                mapping = {}
+                if len(b) > 0:
+                    for s in b.decode('utf-8').split(';'):
+                        spl = s.split(':')
+                        name = spl[0]
+                        if len(spl) == 3:
+                            addr = (spl[1], int(spl[2]))
+                        else:
+                            addr = (spl[1], 2137)
+                        mapping[name] = addr
+                return mapping
             case PayloadType.MSG | PayloadType.WHISPER | PayloadType.ERROR: 
                 return str(b, encoding='utf-8')
             case _: return None

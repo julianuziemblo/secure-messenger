@@ -1,16 +1,14 @@
 from alp import Packet, PayloadType
 from datetime import datetime
+import time
 
 import socket
 import ssl
 
-packet = Packet(
+packet = Packet.new(
     'User1',
-    datetime(1979, 9, 6, 0, 51, 36),
-    bytearray(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'),
-    0x5,
-    PayloadType.MSG,
-    'hello'
+    PayloadType.JOIN,
+    None
 )
 
 raw_packet = packet.to_bytearray()
@@ -25,10 +23,11 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 with context.wrap_socket(s) as sock:
     sock.connect((HOST, PORT))
-    sock.send(b"manialuka")
+    sock.send(raw_packet)
     data = sock.recv(1024)
     
-    print(data.decode())
+    print(Packet.from_raw(bytearray(data)))
+    time.sleep(5)
 
 
 print(f"Received {data}")
