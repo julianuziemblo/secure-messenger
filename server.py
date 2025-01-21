@@ -21,14 +21,14 @@ class User:
     name: str
     addr: tuple[str, int] # (ip, port)
     accepted: bool
-    send_socket: int # socket
-    recv_socket: int # socket
+    send_socket: ssl.SSLSocket
+    recv_socket: ssl.SSLSocket
 
     def __str__(self):
         return f'{self.name}@{self.addr[0]}:{self.addr[1]}'
     
     def __key(self):
-        return (self.name, self.addr[0], self.addr[1], self.send_socket, self.recv_socket)
+        return (self.name, self.addr[0], self.addr[1])
 
     def __hash__(self):
         return hash(self.__key())
@@ -76,9 +76,6 @@ class Server:
                 datetime.now(timezone.utc)
             ).not_valid_after(
                 datetime.now(timezone.utc) + timedelta(days=10)
-            ).add_extension(
-                x509.SubjectAlternativeName([x509.DNSName("localhost")]),
-                critical=False,
             ).sign(key, hashes.SHA256())
 
             with open('cert.pem', 'wb+') as public_fd:
@@ -93,9 +90,11 @@ class Server:
         self.server_ctx = ssl._create_unverified_context(ssl.PROTOCOL_TLS_SERVER)
         self.server_ctx.load_cert_chain(self.public, self.private, password=self.passwd)
 
+        del self.passwd # discard passwd - it's not used anymore
+
         self.main_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        self.users = set() # set(User)
+        self.users: set[User] = set()
 
         self._pipe_read, self._pipe_write = os.pipe()
 
@@ -170,7 +169,6 @@ class Server:
             self.potential_readers = [wrapped_socket, self._pipe_read] # Store all sockets
             self.potential_writers = []
             self.potential_errs = []
-            self.message_queues = {}
 
             while self.potential_readers:
                 ready_to_read, ready_to_write, in_error = select.select(
@@ -186,7 +184,6 @@ class Server:
                         print(f"Connection accepted: {client_address}")
                         connection.setblocking(0)
                         self.potential_readers.append(connection)
-                        self.message_queues[connection] = queue.Queue()   
  
                         if user := self.find_by_addr(client_address, ignore_port=True):
                             user.recv_socket = connection
@@ -198,18 +195,19 @@ class Server:
                         if data == b'CLOSE':
                             exit(0)
                         if data == b'EXIT_CONVERSATION':
-                            new_readers = []
-                            for sock in self.potential_readers:
-                                if sock is not self.wrapped_socket and sock is not self._pipe_read:
-                                    sock.close()
-                                else:
-                                    new_readers.append(sock)
-                            self.potential_readers = new_readers
-                            self.users = set()
+                            for u in self.users:
+                                if u.send_socket and u.send_socket.fileno() > 0:
+                                    u.send_socket.close()
+                                if u.recv_socket and u.send_socket.fileno() > 0:
+                                    self.potential_readers.remove(u.recv_socket)
+                                    u.recv_socket.close()
+                            self.users.clear()
                     else:
                         # socket for receiving data
                         data = s.recv(1024)
                         user = self.find_by_recv_socket(s)
+                        if not user:
+                            continue
                         if data:
                             try:
                                 packet = Packet.from_raw(bytearray(data))
@@ -248,31 +246,20 @@ class Server:
                                 for u, u_addr in packet.payload.items():
                                     self.join(u_addr, u)
                         else:
-                            # find user by socket
-                            print(f"{user} disconnected")
-                            if s in self.potential_writers:
-                                self.potential_writers.remove(s)
+                            print(f'{user} disconnected')
+                            new_users = set()
+                            for u in self.users:
+                                if u.name == user.name and u.addr[0] == user.addr[0] and u.addr[1] == user.addr[1]:
+                                    continue
+                                new_users.add(u)
+                            self.users = new_users
 
-                            self.potential_readers.remove(s)
-                            s.close()
-                            del self.message_queues[s]
-                
-                for s in ready_to_write:
-                    try:
-                        next_msg = self.message_queues[s].get_nowait()
-                    except queue.Empty:
-                        self.potential_writers.remove(s)
-                    else:
-                        s.send(b"[i] Message received")
-                
-                for s in self.potential_errs:
-                    self.potential_readers.remove(s)
-                    if s in self.potential_writers:
-                        self.potential_writers.remove(s)
-                    s.close()
-                    del self.message_queues[s]
+                            if user.send_socket and user.send_socket.fileno() > 0:
+                                user.send_socket.close()
+                            if user.recv_socket and user.send_socket.fileno() > 0:
+                                self.potential_readers.remove(user.recv_socket)
+                                user.recv_socket.close()
 
-        # while True:
 
 if __name__ == '__main__':
     Server().run()

@@ -203,11 +203,15 @@ class TuiCommand:
         }
     
     @staticmethod
-    def _command_accept(ctx: TuiContext, user):
+    def _command_accept(ctx: TuiContext, username):
+        user = ctx.control.find_by_username(username)
+        if not user:
+            print(f'Unknown user: `{username}`')
+            return
         users = ctx.control.users_list()
         mapping = {}
         for u in users:
-            if u.name == user:
+            if u.name == username:
                 continue
             elif u.name == ctx.username:
                 continue
@@ -225,7 +229,7 @@ class TuiCommand:
                 mapping,
                 port=ctx.port
             ), 
-            ctx.control.find_by_username(user)
+            user
         )
         ctx.change_mode(TuiMode.Conversation)
     
