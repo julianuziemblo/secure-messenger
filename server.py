@@ -88,10 +88,10 @@ class Server:
             self.private = 'key.pem'
 
         self.client_ctx = ssl._create_unverified_context(ssl.PROTOCOL_TLS_CLIENT)
-        self.client_ctx.load_cert_chain(self.public, self.private)
+        self.client_ctx.load_cert_chain(self.public, self.private, password=self.passwd)
 
         self.server_ctx = ssl._create_unverified_context(ssl.PROTOCOL_TLS_SERVER)
-        self.server_ctx.load_cert_chain(self.public, self.private)
+        self.server_ctx.load_cert_chain(self.public, self.private, password=self.passwd)
 
         self.main_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
