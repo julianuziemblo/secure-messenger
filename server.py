@@ -235,6 +235,8 @@ class Server:
                                 print(f'')
                                 print(f"[{packet.sender_time}] {user}{' whispers' if packet.dtype == PayloadType.WHISPER else ''}: {packet.payload}")
                             elif packet.dtype == PayloadType.JOIN:
+                                if user in self.users:
+                                    continue
                                 # prompt user to send ACCEPT/DENY
                                 print(f'{user} wants to join the conversation')
                                 print(f'You can accept with /accept {user.name}')
@@ -244,6 +246,8 @@ class Server:
                                 print(f'{user} accepted the invitation.')
                                 self.control.change_mode(TuiMode.Conversation)
                                 for u, u_addr in packet.payload.items():
+                                    if self.find_by_addr(u_addr):
+                                        continue
                                     self.join(u_addr, u)
                         else:
                             print(f'{user} disconnected')
